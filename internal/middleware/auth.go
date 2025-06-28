@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			http.Error(w, "Unauthorized - Missing Bearer token", http.StatusUnauthorized)
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized - Missing Bearer token")
 			return
 		}
 
@@ -29,19 +30,26 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, "Unauthorized - Invalid token", http.StatusUnauthorized)
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized - Invalid token")
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok || claims["user_id"] == nil {
-			http.Error(w, "Unauthorized - Invalid token claims", http.StatusUnauthorized)
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized - Invalid token claims")
 			return
 		}
 
-		// Pass user_id to request context
 		userID := claims["user_id"].(string)
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func respondWithError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": message,
 	})
 }

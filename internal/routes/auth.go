@@ -18,6 +18,7 @@ func RegisterAuthRoutes(r chi.Router) {
 
 			// Authenticated user data
 			protected.Get("/getUserData", handlers.GetUserHandler)
+			protected.Post("/changePassword", handlers.ChangePasswordHandler)
 		})
 	})
 }
