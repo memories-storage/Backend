@@ -5,34 +5,34 @@ import (
 	"log"
 	"net/http"
 	"os"
-
 	"Backend/internal/db"
+
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	if err := godotenv.Load(".env"); err != nil {
-		_ = godotenv.Load("../../.env")
+	// Load .env file
+	if err := godotenv.Load("../../.env"); err != nil {
+		log.Printf("No .env file found or failed to load: %v", err)
 	}
 
-	// Connect to PostgreSQL (Supabase)
-	if err := db.ConnectDB(); err != nil {
-		log.Fatalf("❌ DB connection failed: %v", err)
-	}
+	// Connect to DB
+	db.ConnectDB()
 
-	// Load PORT
+	// Load port from environment variable or default to 8080
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	// Basic test route
+	// Basic route handler (you'll wire routes later)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "✅ Server is running and connected to Supabase!")
+		fmt.Fprintln(w, "Server is running!")
 	})
 
-	log.Printf("🚀 Server started on http://localhost:%s", port)
+	// Start the server
+	log.Printf("Server started on http://localhost:%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatalf("❌ Server failed: %v", err)
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
