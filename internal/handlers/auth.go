@@ -83,7 +83,7 @@ func SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate QR code
-	QRCodeLink, err := utils.GetQRCodeLink()
+	QRCodeLink, err := utils.GenerateQRCode(id.String())
 	if err != nil || QRCodeLink == "" {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate QR code link")
 		return
