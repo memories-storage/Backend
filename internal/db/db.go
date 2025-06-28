@@ -32,3 +32,10 @@ func ConnectDB() error {
 	fmt.Println("Connected to PostgreSQL database")
 	return nil
 }
+
+
+func CloseDB() {
+	if DB != nil {
+		DB.Close()
+	}
+}
