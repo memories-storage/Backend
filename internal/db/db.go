@@ -1,62 +1,46 @@
-// package db
-
-// import (
-// 	"database/sql"
-// 	"fmt"
-// 	"log"
-// 	"os"
-
-// 	_ "github.com/lib/pq"
-// )
-
-// var DB *sql.DB
-
-// func ConnectDB() {
-// 	// Load DB URL from environment variable
-// 	dbURL := os.Getenv("DATABASE_URL")
-// 	if dbURL == "" {
-// 		log.Fatal("DATABASE_URL not set in environment")
-// 	}
-
-// 	// Open the database connection
-// 	var err error
-// 	DB, err = sql.Open("postgres", dbURL)
-// 	if err != nil {
-// 		log.Fatalf("Failed to open DB connection: %v", err)
-// 	}
-
-// 	// Verify the connection
-// 	if err := DB.Ping(); err != nil {
-// 		log.Fatalf("Cannot connect to DB: %v", err)
-// 	}
-
-// 	fmt.Println("Connected to PostgreSQL database")
-// }
-
-
-
-
 package db
 
 import (
 	"context"
 	"log"
+	"net"
 	"os"
-	"github.com/jackc/pgx/v5"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ConnectDB() {
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
-	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
-	}
-	defer conn.Close(context.Background())
+var DB *pgxpool.Pool
 
-	// Example query to test connection
+func ConnectDB() {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL not set in environment")
+	}
+
+	cfg, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		log.Fatalf("Failed to parse DB config: %v", err)
+	}
+
+	// Force IPv4 connection
+	cfg.ConnConfig.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "tcp4", addr)
+	}
+
+	DB, err = pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		log.Fatalf("Failed to create connection pool: %v", err)
+	}
+
+	if err := DB.Ping(context.Background()); err != nil {
+		log.Fatalf("Cannot connect to DB: %v", err)
+	}
+
 	var version string
-	if err := conn.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
+	if err := DB.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
 
-	log.Println("Connected to:", version)
+	log.Println("Connected to PostgreSQL database")
+	log.Printf("Database version: %s", version)
 }
