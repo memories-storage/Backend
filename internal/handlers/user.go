@@ -5,13 +5,20 @@ import (
 	"Backend/internal/middleware"
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
 type UserResponse struct {
-	Email      string `json:"email"`
-	FirstName  string `json:"firstName"`
-	LastName   string `json:"lastName"`
-	QRCodeLink string `json:"qrCodeLink"`
+	Email      string    `json:"email"`
+	FirstName  string    `json:"firstName"`
+	LastName   string    `json:"lastName"`
+	QRCodeLink string    `json:"qrCodeLink"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type UpdateUserRequest struct {
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
 }
 
 func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
@@ -28,18 +35,25 @@ func GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var email, firstName, lastName, qrCodeLink string
-	err := db.DB.QueryRow(`SELECT first_name, last_name, email, qr_code_link FROM users WHERE id = $1`, userID).
-		Scan(&firstName, &lastName, &email, &qrCodeLink)
+	var createdAt time.Time
+
+	err := db.DB.QueryRow(`
+		SELECT first_name, last_name, email, qr_code_link, created_at 
+		FROM users 
+		WHERE id = $1
+	`, userID).Scan(&firstName, &lastName, &email, &qrCodeLink, &createdAt)
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "User not found")
 		return
 	}
 
 	response := UserResponse{
-		Email:     email,
-		FirstName: firstName,
-		LastName:  lastName,
+		Email:      email,
+		FirstName:  firstName,
+		LastName:   lastName,
 		QRCodeLink: qrCodeLink,
+		CreatedAt:  createdAt,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -47,5 +61,35 @@ func GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func UpdateUserProfileHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok || userID == "" {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
 
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
 
+	if req.FirstName == "" && req.LastName == "" {
+		respondWithError(w, http.StatusBadRequest, "At least one of firstName or lastName is required")
+		return
+	}
+
+	// Update user info in DB
+	_, err := db.DB.Exec(`
+		UPDATE users SET "first_name" = $1, "last_name" = $2 WHERE id = $3
+	`, req.FirstName, req.LastName, userID)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to update user profile")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{
+		"message": "User profile updated successfully",
+	})
+}
