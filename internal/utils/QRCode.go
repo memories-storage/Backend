@@ -10,8 +10,7 @@ import (
 
 func GenerateQRCode(id string) (string, error) {
 	content := fmt.Sprintf("http://localhost:8000?id=%s",id)
-	fileName := fmt.Sprintf("%s.png", id)
-	savePath := filepath.Join("assets", "qrcodes", fileName)
+	savePath := fmt.Sprintf("%s.png", id)
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(savePath), os.ModePerm); err != nil {
@@ -23,5 +22,13 @@ func GenerateQRCode(id string) (string, error) {
 		return "", fmt.Errorf("failed to generate QR code: %v", err)
 	}
 
-	return savePath, nil
+	url, err := UploadToCloudinary(savePath)
+	if err != nil{
+		return "", fmt.Errorf("failed to upload files at cloudinary %v",err)
+	}
+
+	// Optional: delete the local file to save disk space
+	_ = os.Remove(savePath)
+
+	return url, nil
 }
