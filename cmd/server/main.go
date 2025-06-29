@@ -29,7 +29,7 @@ func main() {
 	// Set up router
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"}, // or "*" to allow all
+		AllowedOrigins:   []string{"http://localhost:3000", "https://deploy-preview-6--weddingnew.netlify.app/"}, // or "*" to allow all
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
