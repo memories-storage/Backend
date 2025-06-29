@@ -4,7 +4,6 @@ import (
 	"Backend/internal/db"
 	"Backend/internal/utils"
 	"encoding/json"
-	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -103,7 +102,6 @@ func SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	`, id, firstName, lastName, email, string(hashedPassword), QRCodeLink)
 
 	if err != nil {
-		fmt.Println("Insert error:", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to save user in database")
 		return
 	}
@@ -166,7 +164,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate token")
 		return
 	}
-	fmt.Println(role)
 	response := LoginResponse{
 		Token:   tokenString,
 		Message: "User LoggedIn successfully",
