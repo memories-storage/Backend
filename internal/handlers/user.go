@@ -4,6 +4,7 @@ import (
 	"Backend/internal/db"
 	"Backend/internal/middleware"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -19,6 +20,10 @@ type UserResponse struct {
 type UpdateUserRequest struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
+}
+
+type DeleteUserResponse struct {
+	Message string `json:"message"`
 }
 
 func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
@@ -91,5 +96,29 @@ func UpdateUserProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, map[string]string{
 		"message": "User profile updated successfully",
+	})
+}
+
+func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract user ID from JWT context
+	userId, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok || userId == "" {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized or invalid user")
+		return
+	}
+
+	// Delete the user from the users table
+	_, err := db.DB.Exec("DELETE FROM users WHERE id = $1", userId)
+	if err != nil {
+		fmt.Printf("%s",err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete user")
+		return
+	}
+
+	// You may want to clean up related data (images, etc.) as well
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(DeleteUserResponse{
+		Message: "User deleted successfully",
 	})
 }

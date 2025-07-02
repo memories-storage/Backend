@@ -42,8 +42,11 @@ func main() {
 		fmt.Fprintln(w, "Server is running and connected to Supabase!")
 	})
 
-	// Register auth routes
-	routes.RegisterAuthRoutes(r)
+	// Register routes
+	r.Route("/api", func(api chi.Router) {
+		routes.RegisterAuthRoutes(api)
+		routes.RegisterImageRoutes(api)
+	})
 
 	// Start server
 	port := os.Getenv("PORT")
