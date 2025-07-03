@@ -63,78 +63,100 @@ func GetImagesHandler(w http.ResponseWriter, r *http.Request) {
 
 // POST /images/{userId}
 func AddImageHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-		return
-	}
+    if r.Method != http.MethodPost {
+        http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+        return
+    }
 
-	// Get userId from URL param as string (for UUID)
-	userId := chi.URLParam(r, "userId")
-	if userId == "" {
-		respondWithError(w, http.StatusBadRequest, "Missing userId parameter")
-		return
-	}
+    // Parse multipart form (allowing up to 32 MB in memory)
+    err := r.ParseMultipartForm(32 << 20)
+    if err != nil {
+        AddFilerespondWithError(w, http.StatusBadRequest, "Error parsing form")
+        return
+    }
 
-	// Parse multipart form
-	err := r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Error parsing form")
-		return
-	}
+    // Get userId and deviceInfo from form data
+    userId := r.FormValue("userId")
+    deviceInfo := r.FormValue("deviceInfo")
+    if userId == "" || deviceInfo == "" {
+        AddFilerespondWithError(w, http.StatusBadRequest, "Missing userId or deviceInfo")
+        return
+    }
 
-	// Get image file
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Image/video file is required")
-		return
-	}
-	defer file.Close()
+    // Get all uploaded files (files[])
+    files := r.MultipartForm.File["files"]
+    if len(files) == 0 {
+        AddFilerespondWithError(w, http.StatusBadRequest, "No files uploaded!")
+        return
+    }
 
-	// Save file to temp location
-	tmpDir := os.TempDir()
-	tmpFile := filepath.Join(tmpDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), header.Filename))
-	out, err := os.Create(tmpFile)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to create temp file")
-		return
-	}
-	defer func() {
-		out.Close()
-		os.Remove(tmpFile) // cleanup
-	}()
-	_, err = io.Copy(out, file)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to save temp file")
-		return
-	}
+    var responses []ImageResponse
 
-	// Upload to Cloudinary
-	imageUrl, err := utils.UploadToCloudinary(tmpFile)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to upload to Cloudinary", err.Error())
-		return
-	}
+    for _, fileHeader := range files {
+        file, err := fileHeader.Open()
+        if err != nil {
+            continue // skip this file, could also log error
+        }
 
-	// Insert into DB (store user_id as string/uuid in images table!)
-	var id string
-	err = db.DB.QueryRow(
-		"INSERT INTO images (user_id, image_url) VALUES ($1, $2) RETURNING id",
-		userId, imageUrl,
-	).Scan(&id)
-	if err != nil {
-		fmt.Printf("%s", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to save image to database")
-		return
-	}
+        // Save file to temp location
+        tmpDir := os.TempDir()
+        tmpFile := filepath.Join(tmpDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), fileHeader.Filename))
+        out, err := os.Create(tmpFile)
+        if err != nil {
+            file.Close()
+            continue
+        }
 
-	resp := ImageResponse{
-		ID:     id,
-		UserID: userId,
-		URL:    imageUrl,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+        _, err = io.Copy(out, file)
+        out.Close()
+        file.Close()
+        if err != nil {
+            os.Remove(tmpFile)
+            continue
+        }
+
+        // Upload to Cloudinary
+        imageUrl, err := utils.UploadToCloudinary(tmpFile)
+        os.Remove(tmpFile) // cleanup temp file
+        if err != nil {
+            continue
+        }
+
+        // Insert into DB (add device_info field in your table if not already)
+        var id string
+        err = db.DB.QueryRow(
+            "INSERT INTO images (user_id, image_url, device_info) VALUES ($1, $2, $3) RETURNING id",
+            userId, imageUrl, deviceInfo,
+        ).Scan(&id)
+        if err != nil {
+            continue
+        }
+
+        resp := ImageResponse{
+            ID:     id,
+            UserID: userId,
+            URL:    imageUrl,
+        }
+        responses = append(responses, resp)
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(responses)
 }
+
+
+func AddFilerespondWithError(w http.ResponseWriter, code int, message ...string) {
+    w.WriteHeader(code)
+    msg := "error"
+    if len(message) > 0 {
+        msg = message[0]
+        if len(message) > 1 {
+            msg += ": " + message[1]
+        }
+    }
+    _ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
 
 // DELETE /images/{id}
 func DeleteImageHandler(w http.ResponseWriter, r *http.Request) {
