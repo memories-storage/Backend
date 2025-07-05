@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +19,7 @@ type SuccessfulFile struct {
 	ID     string `json:"id"`
 	Link   string `json:"link"`
 	UserID string `json:"user_id"`
+	Name   string `json:"name"`
 }
 
 type FailedFile struct {
@@ -105,20 +105,9 @@ func AddImageHandler(w http.ResponseWriter, r *http.Request) {
 	var successfulFiles []SuccessfulFile
 	var failedFiles []FailedFile
 
-	// Helper function to extract original filename
-	extractOriginalName := func(filename string) string {
-		if strings.Contains(filename, "_") {
-			parts := strings.SplitN(filename, "_", 2)
-			if len(parts) == 2 {
-				return parts[1]
-			}
-		}
-		return filename
-	}
-
 	// Helper function to add failed file
 	addFailedFile := func(filename string) {
-		failedFiles = append(failedFiles, FailedFile{Name: extractOriginalName(filename)})
+		failedFiles = append(failedFiles, FailedFile{Name: filename})
 	}
 
 	for _, fileHeader := range files {
@@ -167,11 +156,13 @@ func AddImageHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Add to successful files
-		successfulFiles = append(successfulFiles, SuccessfulFile{
+		successfulFile := SuccessfulFile{
 			ID:     id,
 			UserID: userId,
 			Link:   imageUrl,
-		})
+			Name:   fileHeader.Filename,
+		}
+		successfulFiles = append(successfulFiles, successfulFile)
 	}
 
 	// Create structured response
