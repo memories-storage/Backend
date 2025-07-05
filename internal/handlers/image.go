@@ -89,7 +89,6 @@ func AddImageHandler(w http.ResponseWriter, r *http.Request) {
         AddFilerespondWithError(w, http.StatusBadRequest, "No files uploaded!")
         return
     }
-
     var responses []ImageResponse
 
     for _, fileHeader := range files {
