@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"Backend/internal/db"
+	"Backend/internal/middleware"
 	"Backend/internal/utils"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"Backend/internal/middleware"
+
 	"github.com/go-chi/chi/v5"
 )
 
@@ -63,98 +64,98 @@ func GetImagesHandler(w http.ResponseWriter, r *http.Request) {
 
 // POST /images/{userId}
 func AddImageHandler(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    // Parse multipart form (allowing up to 32 MB in memory)
-    err := r.ParseMultipartForm(32 << 20)
-    if err != nil {
-        AddFilerespondWithError(w, http.StatusBadRequest, "Error parsing form")
-        return
-    }
+	// Parse multipart form (allowing up to 32 MB in memory)
+	err := r.ParseMultipartForm(32 << 20)
+	if err != nil {
+		AddFilerespondWithError(w, http.StatusBadRequest, "Error parsing form")
+		return
+	}
 
-    // Get userId and deviceInfo from form data
-    userId := r.FormValue("userId")
-    deviceInfo := r.FormValue("deviceInfo")
-    if userId == "" || deviceInfo == "" {
-        AddFilerespondWithError(w, http.StatusBadRequest, "Missing userId or deviceInfo")
-        return
-    }
+	// Get userId and deviceInfo from form data
+	userId := r.FormValue("userId")
+	deviceInfo := r.FormValue("deviceInfo")
+	if userId == "" || deviceInfo == "" {
+		AddFilerespondWithError(w, http.StatusBadRequest, "Missing userId or deviceInfo")
+		return
+	}
 
-    // Get all uploaded files (files[])
-    files := r.MultipartForm.File["files"]
-    if len(files) == 0 {
-        AddFilerespondWithError(w, http.StatusBadRequest, "No files uploaded!")
-        return
-    }
+	// Get all uploaded files (files[])
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		AddFilerespondWithError(w, http.StatusBadRequest, "No files uploaded!")
+		return
+	}
 
-    var responses []ImageResponse
+	var responses []ImageResponse
 
-    for _, fileHeader := range files {
-        file, err := fileHeader.Open()
-        if err != nil {
-            continue // skip this file, could also log error
-        }
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			continue // skip this file, could also log error
+		}
 
-        // Save file to temp location
-        tmpDir := os.TempDir()
-        tmpFile := filepath.Join(tmpDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), fileHeader.Filename))
-        out, err := os.Create(tmpFile)
-        if err != nil {
-            file.Close()
-            continue
-        }
+		// Save file to temp location
+		tmpDir := os.TempDir()
+		tmpFile := filepath.Join(tmpDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), fileHeader.Filename))
+		out, err := os.Create(tmpFile)
+		if err != nil {
+			file.Close()
+			continue
+		}
 
-        _, err = io.Copy(out, file)
-        out.Close()
-        file.Close()
-        if err != nil {
-            os.Remove(tmpFile)
-            continue
-        }
+		_, err = io.Copy(out, file)
+		out.Close()
+		file.Close()
+		if err != nil {
+			os.Remove(tmpFile)
+			continue
+		}
 
-        // Upload to Cloudinary
-        imageUrl, err := utils.UploadToCloudinary(tmpFile)
-        os.Remove(tmpFile) // cleanup temp file
-        if err != nil {
-            continue
-        }
+		// Upload to Cloudinary
+		imageUrl, err := utils.UploadToCloudinary(tmpFile)
+		os.Remove(tmpFile) // cleanup temp file
+		if err != nil {
+			continue
+		}
 
-        // Insert into DB (add device_info field in your table if not already)
-        var id string
-        err = db.DB.QueryRow(
-            "INSERT INTO images (user_id, image_url, device_info) VALUES ($1, $2, $3) RETURNING id",
-            userId, imageUrl, deviceInfo,
-        ).Scan(&id)
-        if err != nil {
-            continue
-        }
+		// Insert into DB
+		var id string
+		err = db.DB.QueryRow(
+			"INSERT INTO images (user_id, image_url, device_info) VALUES ($1, $2, $3) RETURNING id",
+			userId, imageUrl, deviceInfo,
+		).Scan(&id)
+		if err != nil {
+			continue
+		}
 
-        resp := ImageResponse{
-            ID:     id,
-            UserID: userId,
-            URL:    imageUrl,
-        }
-        responses = append(responses, resp)
-    }
+		resp := ImageResponse{
+			ID:     id,
+			UserID: userId,
+			URL:    imageUrl,
+		}
+		responses = append(responses, resp)
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(responses)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(responses)
 }
 
 
 func AddFilerespondWithError(w http.ResponseWriter, code int, message ...string) {
-    w.WriteHeader(code)
-    msg := "error"
-    if len(message) > 0 {
-        msg = message[0]
-        if len(message) > 1 {
-            msg += ": " + message[1]
-        }
-    }
-    _ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	w.WriteHeader(code)
+	msg := "error"
+	if len(message) > 0 {
+		msg = message[0]
+		if len(message) > 1 {
+			msg += ": " + message[1]
+		}
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
 
