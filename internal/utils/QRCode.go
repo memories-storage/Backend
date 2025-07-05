@@ -9,7 +9,7 @@ import (
 )
 
 func GenerateQRCode(id string) (string, error) {
-	content := fmt.Sprintf("http://localhost:3000/upload/id=%s",id)
+	content := fmt.Sprintf("https://weddingnew.netlify.app/upload/id=%s",id)
 	savePath := fmt.Sprintf("%s.png", id)
 
 	// Ensure the directory exists
