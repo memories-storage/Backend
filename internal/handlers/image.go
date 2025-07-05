@@ -10,15 +10,25 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
-type ImageResponse struct {
-	ID     string    `json:"id"`
+type SuccessfulFile struct {
+	ID     string `json:"id"`
+	Link   string `json:"link"`
 	UserID string `json:"user_id"`
-	URL    string `json:"url"`
+}
+
+type FailedFile struct {
+	Name string `json:"name"`
+}
+
+type UploadResponse struct {
+	Successful []SuccessfulFile `json:"successful"`
+	Failed     []FailedFile     `json:"failed"`
 }
 
 type DeleteResponse struct {
@@ -92,20 +102,39 @@ func AddImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var responses []ImageResponse
+	var successfulFiles []SuccessfulFile
+	var failedFiles []FailedFile
+
+	// Helper function to extract original filename
+	extractOriginalName := func(filename string) string {
+		if strings.Contains(filename, "_") {
+			parts := strings.SplitN(filename, "_", 2)
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		}
+		return filename
+	}
+
+	// Helper function to add failed file
+	addFailedFile := func(filename string) {
+		failedFiles = append(failedFiles, FailedFile{Name: extractOriginalName(filename)})
+	}
 
 	for _, fileHeader := range files {
 		file, err := fileHeader.Open()
 		if err != nil {
-			continue // skip this file, could also log error
+			addFailedFile(fileHeader.Filename)
+			continue
 		}
 
-		// Save file to temp location
+		// Save to temp location
 		tmpDir := os.TempDir()
 		tmpFile := filepath.Join(tmpDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), fileHeader.Filename))
 		out, err := os.Create(tmpFile)
 		if err != nil {
 			file.Close()
+			addFailedFile(fileHeader.Filename)
 			continue
 		}
 
@@ -114,13 +143,15 @@ func AddImageHandler(w http.ResponseWriter, r *http.Request) {
 		file.Close()
 		if err != nil {
 			os.Remove(tmpFile)
+			addFailedFile(fileHeader.Filename)
 			continue
 		}
 
 		// Upload to Cloudinary
 		imageUrl, err := utils.UploadToCloudinary(tmpFile)
-		os.Remove(tmpFile) // cleanup temp file
+		os.Remove(tmpFile)
 		if err != nil {
+			addFailedFile(fileHeader.Filename)
 			continue
 		}
 
@@ -131,19 +162,26 @@ func AddImageHandler(w http.ResponseWriter, r *http.Request) {
 			userId, imageUrl, deviceInfo,
 		).Scan(&id)
 		if err != nil {
+			addFailedFile(fileHeader.Filename)
 			continue
 		}
 
-		resp := ImageResponse{
+		// Add to successful files
+		successfulFiles = append(successfulFiles, SuccessfulFile{
 			ID:     id,
 			UserID: userId,
-			URL:    imageUrl,
-		}
-		responses = append(responses, resp)
+			Link:   imageUrl,
+		})
+	}
+
+	// Create structured response
+	response := UploadResponse{
+		Successful: successfulFiles,
+		Failed:     failedFiles,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(responses)
+	json.NewEncoder(w).Encode(response)
 }
 
 
