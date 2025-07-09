@@ -10,6 +10,7 @@ import (
 )
 
 type UserResponse struct {
+	UserID     string    `json:"userId"`
 	Email      string    `json:"email"`
 	FirstName  string    `json:"firstName"`
 	LastName   string    `json:"lastName"`
@@ -54,6 +55,7 @@ func GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := UserResponse{
+		UserID:     userID,
 		Email:      email,
 		FirstName:  firstName,
 		LastName:   lastName,
