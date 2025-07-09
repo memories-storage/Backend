@@ -2,8 +2,9 @@ package routes
 
 import (
 	"Backend/internal/handlers"
-	"github.com/go-chi/chi/v5"
 	"Backend/internal/middleware"
+	
+	"github.com/go-chi/chi/v5"
 )
 
 func RegisterImageRoutes(r chi.Router) {
