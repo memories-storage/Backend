@@ -46,6 +46,7 @@ func main() {
 	r.Route("/api", func(api chi.Router) {
 		routes.RegisterAuthRoutes(api)
 		routes.RegisterImageRoutes(api)
+		routes.RegisterFolderRoutes(api)
 	})
 
 	// Start server
