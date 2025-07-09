@@ -3,15 +3,16 @@ package handlers
 import (
 	"Backend/internal/db"
 	"Backend/internal/utils"
+	"database/sql"
 	"encoding/json"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-	"database/sql"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
@@ -25,6 +26,7 @@ type LoginResponse struct {
 	Token   string `json:"token"`
 	Message string `json:"message"`
 	Role    string `json:"role"`
+	UserID  string `json:"userID"`
 }
 
 type ErrorResponse struct {
@@ -168,6 +170,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Token:   tokenString,
 		Message: "User LoggedIn successfully",
 		Role:    role,
+		UserID:  id,
 	}
 	// Return token
 	w.Header().Set("Content-Type", "application/json")
